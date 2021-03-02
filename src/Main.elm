@@ -28,8 +28,7 @@ type alias Model =
 type Atom
     = Text String
     | Rectangle Int Int
-    | Vertical VerticalData
-    | Horizontal HorizontalData
+    | Frame FrameData
 
 
 type Msg
@@ -57,13 +56,19 @@ type alias StrokeInfo =
     }
 
 
-type alias HorizontalData =
-    { children : List Layout
+type alias FrameData =
+    { direction : FrameDirection
+    , children : List Layout
     , stroke : StrokeInfo
     , spacing : Int
     , fillColor : Color
     , padding : Padding
     }
+
+
+type FrameDirection
+    = HorizontalDirection
+    | VerticalDirection
 
 
 type alias Padding =
@@ -71,15 +76,6 @@ type alias Padding =
     , right : Int
     , top : Int
     , bottom : Int
-    }
-
-
-type alias VerticalData =
-    { children : List Layout
-    , stroke : StrokeInfo
-    , spacing : Int
-    , fillColor : Color
-    , padding : Padding
     }
 
 
@@ -245,13 +241,13 @@ init _ =
       , layout =
             { name = "Frame 0"
             , value =
-                Vertical
+                Frame
                     { defaultVerticalData
                         | children =
                             [ { name = "header", value = Text "header" }
                             , { name = "menu"
                               , value =
-                                    Horizontal
+                                    Frame
                                         { defaultHorizontalData
                                             | children =
                                                 [ { name = "File", value = Text "File" }
@@ -263,7 +259,7 @@ init _ =
                               }
                             , { name = "body"
                               , value =
-                                    Horizontal
+                                    Frame
                                         { defaultHorizontalData
                                             | children =
                                                 [ { name = "left pane", value = Text "Left Pane Text" }
@@ -291,11 +287,8 @@ update msg model =
 nodeWithSpacing : Int -> Layout -> Layout
 nodeWithSpacing spacing node =
     case node.value of
-        Horizontal h ->
-            { node | value = Horizontal { h | spacing = spacing } }
-
-        Vertical v ->
-            { node | value = Vertical { v | spacing = spacing } }
+        Frame v ->
+            { node | value = Frame { v | spacing = spacing } }
 
         _ ->
             node
@@ -304,11 +297,8 @@ nodeWithSpacing spacing node =
 nodeWithStroke : StrokeInfo -> Layout -> Layout
 nodeWithStroke stroke node =
     case node.value of
-        Horizontal h ->
-            { node | value = Horizontal { h | stroke = stroke } }
-
-        Vertical v ->
-            { node | value = Vertical { v | stroke = stroke } }
+        Frame v ->
+            { node | value = Frame { v | stroke = stroke } }
 
         _ ->
             node
@@ -317,11 +307,8 @@ nodeWithStroke stroke node =
 nodeWithFill : Color -> Layout -> Layout
 nodeWithFill color node =
     case node.value of
-        Horizontal h ->
-            { node | value = Horizontal { h | fillColor = color } }
-
-        Vertical v ->
-            { node | value = Vertical { v | fillColor = color } }
+        Frame v ->
+            { node | value = Frame { v | fillColor = color } }
 
         _ ->
             node
@@ -330,11 +317,8 @@ nodeWithFill color node =
 nodeWithPadding : Padding -> Layout -> Layout
 nodeWithPadding padding node =
     case node.value of
-        Horizontal h ->
-            { node | value = Horizontal { h | padding = padding } }
-
-        Vertical v ->
-            { node | value = Vertical { v | padding = padding } }
+        Frame v ->
+            { node | value = Frame { v | padding = padding } }
 
         _ ->
             node
@@ -473,19 +457,11 @@ updateModel msg model =
                                     of
                                         ( Just nodeToMove, Just newParent ) ->
                                             case newParent.value of
-                                                Horizontal h ->
+                                                Frame v ->
                                                     deleteNode (tryTail dragPath) model.layout
                                                         |> replaceNode (tryTail destinationPath)
                                                             { name = newParent.name
-                                                            , value =
-                                                                Horizontal { h | children = nodeToMove :: h.children }
-                                                            }
-
-                                                Vertical v ->
-                                                    deleteNode (tryTail dragPath) model.layout
-                                                        |> replaceNode (tryTail destinationPath)
-                                                            { name = newParent.name
-                                                            , value = Vertical { v | children = nodeToMove :: v.children }
+                                                            , value = Frame { v | children = nodeToMove :: v.children }
                                                             }
 
                                                 _ ->
@@ -542,22 +518,7 @@ getNode path layout =
             -- Text has no children, and were at the end of the line, so we can only return Nothing
             Nothing
 
-        ( nextPath :: rest, Horizontal h ) ->
-            let
-                matches =
-                    h.children
-                        |> List.indexedMap (\idx child -> ( idx, child ))
-                        |> List.filter (\( idx, child ) -> child.name == nextPath)
-            in
-            case List.head matches of
-                Nothing ->
-                    -- No match!
-                    Nothing
-
-                Just ( idx, firstMatch ) ->
-                    getNode rest firstMatch
-
-        ( nextPath :: rest, Vertical v ) ->
+        ( nextPath :: rest, Frame v ) ->
             let
                 matches =
                     v.children
@@ -585,37 +546,12 @@ deleteNode path layout =
         ( nextPath :: rest, Text _ ) ->
             Debug.todo ("Can't get children of text, path: " ++ Debug.toString path) layout
 
-        ( nextPath :: [], Horizontal h ) ->
+        ( nextPath :: [], Frame v ) ->
             { layout
-                | value =
-                    Horizontal
-                        { h | children = h.children |> List.filter (\child -> child.name /= nextPath) }
+                | value = Frame { v | children = v.children |> List.filter (\child -> child.name /= nextPath) }
             }
 
-        ( nextPath :: [], Vertical v ) ->
-            { layout
-                | value = Vertical { v | children = v.children |> List.filter (\child -> child.name /= nextPath) }
-            }
-
-        ( nextPath :: rest, Horizontal h ) ->
-            let
-                matches =
-                    h.children
-                        |> List.indexedMap (\idx child -> ( idx, child ))
-                        |> List.filter (\( idx, child ) -> child.name == nextPath)
-            in
-            case List.head matches of
-                Nothing ->
-                    Debug.todo ("No match for child of horizontal" ++ Debug.toString path) layout
-
-                Just ( idx, oldValue ) ->
-                    { layout
-                        | value =
-                            Horizontal
-                                { h | children = listReplaceIndex (deleteNode rest oldValue) idx h.children }
-                    }
-
-        ( nextPath :: rest, Vertical v ) ->
+        ( nextPath :: rest, Frame v ) ->
             let
                 matches =
                     v.children
@@ -628,7 +564,7 @@ deleteNode path layout =
 
                 Just ( idx, oldValue ) ->
                     { layout
-                        | value = Vertical { v | children = listReplaceIndex (deleteNode rest oldValue) idx v.children }
+                        | value = Frame { v | children = listReplaceIndex (deleteNode rest oldValue) idx v.children }
                     }
 
 
@@ -644,25 +580,7 @@ replaceNode path newValue layout =
         ( nextPath :: rest, Text _ ) ->
             Debug.todo ("Can't get children of text, path: " ++ Debug.toString path) layout
 
-        ( nextPath :: rest, Horizontal h ) ->
-            let
-                matches =
-                    h.children
-                        |> List.indexedMap (\idx child -> ( idx, child ))
-                        |> List.filter (\( idx, child ) -> child.name == nextPath)
-            in
-            case List.head matches of
-                Nothing ->
-                    Debug.todo ("No match for child of horizontal" ++ Debug.toString path) layout
-
-                Just ( idx, oldValue ) ->
-                    { layout
-                        | value =
-                            Horizontal
-                                { h | children = listReplaceIndex (replaceNode rest newValue oldValue) idx h.children }
-                    }
-
-        ( nextPath :: rest, Vertical v ) ->
+        ( nextPath :: rest, Frame v ) ->
             let
                 matches =
                     v.children
@@ -675,7 +593,7 @@ replaceNode path newValue layout =
 
                 Just ( idx, oldValue ) ->
                     { layout
-                        | value = Vertical { v | children = listReplaceIndex (replaceNode rest newValue oldValue) idx v.children }
+                        | value = Frame { v | children = listReplaceIndex (replaceNode rest newValue oldValue) idx v.children }
                     }
 
 
@@ -750,7 +668,7 @@ viewInspector model =
                                 |> Maybe.map
                                     (\old ->
                                         NodeReplaced path
-                                            { name = "hor", value = Horizontal { defaultHorizontalData | children = [ old ] } }
+                                            { name = "hor", value = Frame { defaultHorizontalData | children = [ old ] } }
                                     )
                         , label = text "Wrap in row"
                         }
@@ -761,7 +679,7 @@ viewInspector model =
                                 |> Maybe.map
                                     (\old ->
                                         NodeReplaced path
-                                            { name = "col", value = Vertical { defaultVerticalData | children = [ old ] } }
+                                            { name = "col", value = Frame { defaultVerticalData | children = [ old ] } }
                                     )
                         , label = text "Wrap in column"
                         }
@@ -920,7 +838,7 @@ selectionSpecificOptions path layout =
                 }
             ]
 
-        Horizontal h ->
+        Frame v ->
             [ Input.button
                 buttonStyle
                 { onPress =
@@ -928,33 +846,7 @@ selectionSpecificOptions path layout =
                         (NodeReplaced path
                             { name = path |> listLast |> Maybe.withDefault "bad path"
                             , value =
-                                Horizontal
-                                    { h
-                                        | children =
-                                            { name = nextName "New Text" (List.map .name h.children)
-                                            , value = Text ""
-                                            }
-                                                :: h.children
-                                    }
-                            }
-                        )
-                , label = text "Prepend text element"
-                }
-            ]
-                ++ strokeInspector path h.stroke
-                ++ fillInspector path h.fillColor
-                ++ spacingInspector path h.spacing
-                ++ paddingInspector path h.padding
-
-        Vertical v ->
-            [ Input.button
-                buttonStyle
-                { onPress =
-                    Just
-                        (NodeReplaced path
-                            { name = path |> listLast |> Maybe.withDefault "bad path"
-                            , value =
-                                Vertical
+                                Frame
                                     { v
                                         | children =
                                             { name = nextName "New Text" (List.map .name v.children)
@@ -989,11 +881,11 @@ defaultPadding =
 
 
 defaultVerticalData =
-    { children = [], stroke = defaultStroke, spacing = defaultSpacing, fillColor = white, padding = defaultPadding }
+    { direction = VerticalDirection, children = [], stroke = defaultStroke, spacing = defaultSpacing, fillColor = white, padding = defaultPadding }
 
 
 defaultHorizontalData =
-    { children = [], stroke = defaultStroke, spacing = defaultSpacing, fillColor = white, padding = defaultPadding }
+    { direction = HorizontalDirection, children = [], stroke = defaultStroke, spacing = defaultSpacing, fillColor = white, padding = defaultPadding }
 
 
 nextName : String -> List String -> String
@@ -1085,8 +977,16 @@ viewAtom path atom =
                         []
                         (text t)
 
-                Vertical v ->
-                    column
+                Frame v ->
+                    let
+                        frameType =
+                            if v.direction == VerticalDirection then
+                                column
+
+                            else
+                                row
+                    in
+                    frameType
                         [ Element.htmlAttribute (style "outline" (String.fromInt v.stroke.width ++ "px solid #000000"))
                         , Element.htmlAttribute (style "outline-offset" ("-" ++ String.fromInt v.stroke.width ++ "px"))
 
@@ -1097,21 +997,6 @@ viewAtom path atom =
                         , Background.color v.fillColor
                         ]
                         (v.children
-                            |> List.map (\layout -> viewAtom (popPath path layout.name) layout.value)
-                        )
-
-                Horizontal h ->
-                    row
-                        [ Element.htmlAttribute (style "outline" "4px solid #000000")
-                        , Element.htmlAttribute (style "outline-offset" "-4px")
-
-                        --   Border.width v.stroke.width
-                        --, Border.color v.stroke.color
-                        , spacing h.spacing
-                        , paddingEach h.padding
-                        , Background.color h.fillColor
-                        ]
-                        (h.children
                             |> List.map (\layout -> viewAtom (popPath path layout.name) layout.value)
                         )
 
@@ -1204,11 +1089,8 @@ viewOutline path model layout =
                 Rectangle x y ->
                     []
 
-                Vertical v ->
+                Frame v ->
                     v.children |> List.map (viewOutline (path ++ [ layout.name ]) model)
-
-                Horizontal h ->
-                    h.children |> List.map (viewOutline (path ++ [ layout.name ]) model)
             )
         ]
 

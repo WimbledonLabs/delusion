@@ -58,17 +58,19 @@ type alias TextStyle =
 
 
 {-
-   # FULLY EDITABLE
+   # Text Styling TODOs
+
+   ## FULLY EDITABLE
    ...
 
-   # IN VIEW
+   ## IN VIEW
    color
    size
 
-   # IN MODEL
+   ## IN MODEL
    ...
 
-   # TODO
+   ## TODO
    wordWrapping (puts the text in a paragraph, let's you set line spacing with "spacing")
 
    Font Type:
@@ -142,6 +144,30 @@ type alias FrameData =
 type FrameDirection
     = HorizontalDirection
     | VerticalDirection
+
+
+
+{-
+   ## FULLY EDITABLE
+   children
+   fill color (solid)
+   stroke color
+   stroke width
+   spacing
+   padding (not padding each)
+
+   ## IN VIEW
+   paddingEach
+   fill color opacity
+
+   ## IN MODEL
+   ...
+
+   ## TODO
+   Grids
+   Flex Rows
+   Flex Columns
+-}
 
 
 type alias Padding =
@@ -685,10 +711,10 @@ listReplaceIndex newValue replaceIdx lst =
 
 view : Model -> Html Msg
 view model =
-    Element.layout []
+    Element.layout [ Background.color (rgb255 54 57 63), Font.color (rgb255 218 219 220) ]
         (Element.column [ spacing 40, width fill, padding 4 ]
             [ Element.row [ alignTop, width fill ]
-                [ viewOutline [] model model.layout
+                [ Element.el [ padding 8, alignTop, width fill ] (viewOutline [] model model.layout)
                 , viewInspector model
                 ]
             , viewAtom (popPath model.focus model.layout.name) model.layout.value
@@ -698,7 +724,7 @@ view model =
 
 viewInspector : Model -> Element Msg
 viewInspector model =
-    Element.el [ height (px 600), Border.width 1, width fill ]
+    Element.el [ height (px 600), Border.width 1, width fill, padding 8 ]
         (case model.focus of
             Nothing ->
                 text "Nothing Focused"
@@ -763,22 +789,6 @@ viewInspector model =
                            )
                     )
         )
-
-
-defaultStroke =
-    { width = 1, color = black }
-
-
-black =
-    rgb255 0 0 0
-
-
-white =
-    rgb255 255 255 255
-
-
-green =
-    rgb255 0 100 0
 
 
 strokeUpdateWidth : Int -> StrokeInfo -> StrokeInfo
@@ -956,16 +966,46 @@ defaultPadding =
 defaultTextStyle : TextStyle
 defaultTextStyle =
     { size = 20
-    , color = black
+    , color = notCompletelyWhite
+    }
+
+
+defaultHorizontalData =
+    { direction = HorizontalDirection
+    , children = []
+    , stroke = defaultStroke
+    , spacing = defaultSpacing
+    , fillColor = notCompletelyBlack
+    , padding = defaultPadding
     }
 
 
 defaultVerticalData =
-    { direction = VerticalDirection, children = [], stroke = defaultStroke, spacing = defaultSpacing, fillColor = white, padding = defaultPadding }
+    { defaultHorizontalData | direction = VerticalDirection }
 
 
-defaultHorizontalData =
-    { direction = HorizontalDirection, children = [], stroke = defaultStroke, spacing = defaultSpacing, fillColor = white, padding = defaultPadding }
+defaultStroke =
+    { width = 1, color = notCompletelyWhite }
+
+
+notCompletelyWhite =
+    rgb255 218 219 220
+
+
+notCompletelyBlack =
+    rgb255 31 33 36
+
+
+black =
+    rgb255 0 0 0
+
+
+white =
+    rgb255 255 255 255
+
+
+green =
+    rgb255 0 100 0
 
 
 nextName : String -> List String -> String
@@ -1069,7 +1109,7 @@ viewAtom path atom =
                                 row
                     in
                     frameType
-                        [ Element.htmlAttribute (style "outline" (String.fromInt v.stroke.width ++ "px solid #000000"))
+                        [ Element.htmlAttribute (style "outline" (String.fromInt v.stroke.width ++ "px solid " ++ colorToHex v.stroke.color))
                         , Element.htmlAttribute (style "outline-offset" ("-" ++ String.fromInt v.stroke.width ++ "px"))
 
                         --   Border.width v.stroke.width

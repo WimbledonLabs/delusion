@@ -26,7 +26,7 @@ type alias Model =
 
 
 type Atom
-    = Text String
+    = Text TextStyle String
     | Rectangle Int Int
     | Frame FrameData
 
@@ -46,8 +46,81 @@ type Msg
 type BeaconType
     = OutlineItem (List String)
     | SpacingSlider (List String)
-    | PaddingSlider (List String)
+    | PaddingSlider (List String) -- TODO: this should include a direction (top/bottom/left/right/all)
     | StrokeWidthSlider (List String) StrokeInfo
+
+
+type alias TextStyle =
+    { size : Int
+    , color : Color
+    }
+
+
+
+{-
+   # FULLY EDITABLE
+   ...
+
+   # IN VIEW
+   color
+   size
+
+   # IN MODEL
+   ...
+
+   # TODO
+   wordWrapping (puts the text in a paragraph, let's you set line spacing with "spacing")
+
+   Font Type:
+   - typeface : String
+   - serif
+   - sansSerif
+   - monospace
+
+
+   Alignment and Spacing:
+   - alignLeft
+   - alignRight
+   - center
+   - justify
+   - letterSpacing : Float
+   - wordSpacing : Float
+
+   Decoration:
+   - underline
+   - strike
+   - italic
+   - unitalicized : This will reset bold and italic.
+
+   Font Weight
+   - heavy
+   - extraBold
+   - bold
+   - semiBold
+   - medium
+   - regular
+   - light
+   - extraLight
+   - hairline
+
+   Variants
+   - smallCaps: Small caps are rendered using uppercase glyphs, but at the size of lowercase glyphs.
+   - slashedZero: Add a slash when rendering 0
+   - ligatures
+   - ordinal: Oridinal markers like 1st and 2nd will receive special glyphs.
+   - tabularNumbers: Number figures will each take up the same space, allowing them to be easily aligned, such as in tables.
+   - stackedFractions : Render fractions with the numerator stacked on top of the denominator.
+   - diagonalFractions : Render fractions
+   - swash: Int [https://en.wikipedia.org/wiki/Swash_(typography)]
+   - feature: Four-letter feature names from OpenType [https://docs.microsoft.com/en-us/typography/opentype/spec/featurelist]
+   - indexed: A font variant might have multiple versions within the font. In these cases we need to specify the index of the version we want.
+
+   shadow :
+       { offset : ( Float, Float )
+       , blur : Float
+       , color : Color
+       }
+-}
 
 
 type alias StrokeInfo =
@@ -244,15 +317,15 @@ init _ =
                 Frame
                     { defaultVerticalData
                         | children =
-                            [ { name = "header", value = Text "header" }
+                            [ { name = "header", value = Text defaultTextStyle "header" }
                             , { name = "menu"
                               , value =
                                     Frame
                                         { defaultHorizontalData
                                             | children =
-                                                [ { name = "File", value = Text "File" }
-                                                , { name = "Edit", value = Text "Edit" }
-                                                , { name = "View", value = Text "View" }
+                                                [ { name = "File", value = Text defaultTextStyle "File" }
+                                                , { name = "Edit", value = Text defaultTextStyle "Edit" }
+                                                , { name = "View", value = Text defaultTextStyle "View" }
                                                 ]
                                             , spacing = 20
                                         }
@@ -262,8 +335,8 @@ init _ =
                                     Frame
                                         { defaultHorizontalData
                                             | children =
-                                                [ { name = "left pane", value = Text "Left Pane Text" }
-                                                , { name = "right pane", value = Text "Right Pane Text" }
+                                                [ { name = "left pane", value = Text defaultTextStyle "Left Pane Text" }
+                                                , { name = "right pane", value = Text defaultTextStyle "Right Pane Text" }
                                                 , { name = "rect", value = Rectangle 400 600 }
                                                 ]
                                         }
@@ -514,7 +587,7 @@ getNode path layout =
             -- Rectangle has no children, and were at the end of the line, so we can only return Nothing
             Nothing
 
-        ( nextPath :: rest, Text _ ) ->
+        ( nextPath :: rest, Text _ _ ) ->
             -- Text has no children, and were at the end of the line, so we can only return Nothing
             Nothing
 
@@ -543,7 +616,7 @@ deleteNode path layout =
         ( nextPath :: rest, Rectangle _ _ ) ->
             Debug.todo ("Can't get children of rect, path: " ++ Debug.toString path) layout
 
-        ( nextPath :: rest, Text _ ) ->
+        ( nextPath :: rest, Text _ _ ) ->
             Debug.todo ("Can't get children of text, path: " ++ Debug.toString path) layout
 
         ( nextPath :: [], Frame v ) ->
@@ -577,7 +650,7 @@ replaceNode path newValue layout =
         ( nextPath :: rest, Rectangle _ _ ) ->
             Debug.todo ("Can't get children of rect, path: " ++ Debug.toString path) layout
 
-        ( nextPath :: rest, Text _ ) ->
+        ( nextPath :: rest, Text _ _ ) ->
             Debug.todo ("Can't get children of text, path: " ++ Debug.toString path) layout
 
         ( nextPath :: rest, Frame v ) ->
@@ -646,7 +719,7 @@ viewInspector model =
                                             (getNode (tryTail path) model.layout
                                                 |> Maybe.withDefault
                                                     { name = "Something Broke"
-                                                    , value = Text "SOmething broke"
+                                                    , value = Text defaultTextStyle "SOmething broke"
                                                     }
                                             ).value
                                         }
@@ -826,12 +899,12 @@ paddingInspector path padding =
 selectionSpecificOptions : List String -> Layout -> List (Element Msg)
 selectionSpecificOptions path layout =
     case layout.value of
-        Text t ->
+        Text style t ->
             [ Input.text []
                 { onChange =
                     \newText ->
                         NodeReplaced path
-                            { name = path |> listLast |> Maybe.withDefault "bad path", value = Text newText }
+                            { name = path |> listLast |> Maybe.withDefault "bad path", value = Text style newText }
                 , text = t
                 , placeholder = Nothing
                 , label = Input.labelHidden ""
@@ -850,7 +923,7 @@ selectionSpecificOptions path layout =
                                     { v
                                         | children =
                                             { name = nextName "New Text" (List.map .name v.children)
-                                            , value = Text ""
+                                            , value = Text defaultTextStyle ""
                                             }
                                                 :: v.children
                                     }
@@ -877,6 +950,13 @@ defaultPadding =
     , right = 8
     , top = 8
     , bottom = 8
+    }
+
+
+defaultTextStyle : TextStyle
+defaultTextStyle =
+    { size = 20
+    , color = black
     }
 
 
@@ -972,9 +1052,11 @@ viewAtom path atom =
     let
         element =
             case atom of
-                Text t ->
+                Text style t ->
                     el
-                        []
+                        [ Font.size style.size
+                        , Font.color style.color
+                        ]
                         (text t)
 
                 Frame v ->
@@ -1083,7 +1165,7 @@ viewOutline path model layout =
             }
         , Element.column [ paddingEach { left = 15, right = 0, top = 0, bottom = 0 } ]
             (case layout.value of
-                Text _ ->
+                Text _ _ ->
                     []
 
                 Rectangle x y ->
